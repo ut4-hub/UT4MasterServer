@@ -410,6 +410,47 @@ public sealed class MatchmakingController : JsonAPIController
 		return await ListGameServers(new GameServerFilterRequest());
 	}
 
+	/// <summary>
+	/// Quick-Play: pick one running game server suitable for an immediate join.
+	///
+	/// Servers participate in the Quick-Play pool by advertising
+	/// <c>UT_RULETAG_s</c> in their attributes (e.g. "QuickPlay_iDM",
+	/// "QuickPlay_CTF", "QuickPlay_DUEL" — tags match the
+	/// <c>UniqueTag</c> values in <c>UnrealTournmentMCPGameRulesets.json</c>).
+	///
+	/// The intended deployment is a small pool of always-on bot-filled
+	/// servers per ruleset. The fullest server with capacity wins, so
+	/// human Quick-Play players concentrate onto the same instance and
+	/// displace bots rather than spawning fresh empty matches.
+	/// </summary>
+	[AllowAnonymous]
+	[HttpPost("quickplay")]
+	public async Task<IActionResult> QuickPlay([FromBody] QuickPlayRequest request)
+	{
+		GameServer? server = await matchmakingService.FindQuickPlayServerAsync(
+			request.RulesetTag,
+			request.PreferredMap,
+			request.BuildUniqueId);
+
+		if (server == null)
+		{
+			return NotFound(new ErrorResponse
+			{
+				ErrorCode = "errors.com.ut4masterserver.matchmaking.no_quickplay_server",
+				ErrorMessage = "No Quick-Play server is available for the requested ruleset.",
+				NumericErrorCode = 18007,
+				OriginatingService = "utservice",
+				Intent = "prod10"
+			});
+		}
+
+#if DEBUG && USE_LOCALHOST_TEST
+		server.ServerAddress = "127.0.0.1";
+#endif
+
+		return Ok(server.ToJson(true));
+	}
+
 	[HttpPost("session/{id}/join")]
 	public async Task<IActionResult> PlayerJoinGameServer(string id, [FromQuery(Name = "accountId")] string accountID)
 	{
