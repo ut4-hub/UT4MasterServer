@@ -30,10 +30,12 @@ public sealed class WaitTimesController : JsonAPIController
 			return Unauthorized();
 		}
 
-		// UT4 client expects an object, not a bare array. Wrap waitTimes
-		// inside { waitTimes: [...] } so client-side JSON deserialization
-		// doesn't fail (and bring the whole Quick-Play search down with it).
-		return Ok(new { waitTimes = service.GetWaitTimes() });
+		// Per Epic's UT4 source (UTMcpUtils.cpp `GetEstimatedWaitTimes`),
+		// the response is a bare top-level JSON array of FWaitTimeInfo:
+		//   [ { ratingType, numSamples, averageWaitTimeSecs }, ... ]
+		// UT4 iterates JsonValue->AsArray() — no envelope. An empty array
+		// is acceptable. Returning the live tracked wait times.
+		return Ok(service.GetWaitTimes());
 	}
 
 	[HttpGet("report/{ratingType}/{timeWaited}")]
