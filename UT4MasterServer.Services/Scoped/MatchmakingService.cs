@@ -201,6 +201,79 @@ public sealed class MatchmakingService
 		return ret;
 	}
 
+	/// <summary>
+	/// Find one running game server suitable for a Quick-Play join.
+	///
+	/// Selection rules:
+	///   * server must be non-stale (LastUpdated within StaleAfter)
+	///   * if <paramref name="rulesetTag"/> is supplied, the server must
+	///     advertise UT_RULETAG_s = rulesetTag
+	///   * if <paramref name="preferredMap"/> is supplied, MAPNAME_s must match
+	///   * if <paramref name="buildUniqueId"/> is supplied, BuildUniqueID must match
+	///   * server must have at least one open public slot
+	///
+	/// Among candidates, the server with the fewest open public slots wins
+	/// (i.e. fillest server with capacity), so Quick-Play players concentrate
+	/// onto the busiest valid server — humans displace bots on the curated
+	/// always-on pool instead of spreading thin.
+	///
+	/// Returns null when no server matches.
+	/// </summary>
+	public async Task<GameServer?> FindQuickPlayServerAsync(
+		string? rulesetTag,
+		string? preferredMap,
+		string? buildUniqueId)
+	{
+		var doc = new BsonDocument();
+
+		if (DateTime.UtcNow - runtimeInfoService.StartupTime > StaleAfter)
+		{
+			doc.Add(new BsonElement(nameof(GameServer.LastUpdated), new BsonDocument("$gt", DateTime.UtcNow - StaleAfter)));
+		}
+
+		if (!string.IsNullOrWhiteSpace(buildUniqueId))
+		{
+			doc.Add(new BsonElement(nameof(GameServer.BuildUniqueID), buildUniqueId));
+		}
+
+		if (!string.IsNullOrWhiteSpace(rulesetTag))
+		{
+			doc.Add(new BsonElement($"{nameof(GameServer.Attributes)}.UT_RULETAG_s", rulesetTag));
+		}
+
+		if (!string.IsNullOrWhiteSpace(preferredMap))
+		{
+			doc.Add(new BsonElement($"{nameof(GameServer.Attributes)}.MAPNAME_s", preferredMap));
+		}
+
+		var options = new FindOptions<GameServer>
+		{
+			AllowPartialResults = true,
+			MaxAwaitTime = TimeSpan.FromSeconds(1.0),
+		};
+
+		var filter = new BsonDocumentFilterDefinition<GameServer>(doc);
+		IAsyncCursor<GameServer>? cursor = await serverCollection.FindAsync(filter, options);
+		List<GameServer>? candidates = await cursor.ToListAsync();
+
+		// Filter for spare capacity in memory — MaxPublicPlayers vs PublicPlayers.Count
+		// is awkward to express in Bson without computed fields.
+		List<GameServer> withCapacity = candidates
+			.Where(s => s.MaxPublicPlayers - s.PublicPlayers.Count > 0)
+			.ToList();
+
+		if (withCapacity.Count == 0)
+		{
+			return null;
+		}
+
+		// Fewest open slots wins → concentrate Quick-Play players onto the
+		// fullest server with capacity.
+		return withCapacity
+			.OrderBy(s => s.MaxPublicPlayers - s.PublicPlayers.Count)
+			.First();
+	}
+
 	public async Task<int> RemoveAllStaleAsync()
 	{
 		DateTime now = DateTime.UtcNow; // Use the same value for all checks in this call
