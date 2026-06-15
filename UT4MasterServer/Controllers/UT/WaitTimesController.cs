@@ -30,7 +30,10 @@ public sealed class WaitTimesController : JsonAPIController
 			return Unauthorized();
 		}
 
-		return Ok(service.GetWaitTimes());
+		// UT4 client expects an object, not a bare array. Wrap waitTimes
+		// inside { waitTimes: [...] } so client-side JSON deserialization
+		// doesn't fail (and bring the whole Quick-Play search down with it).
+		return Ok(new { waitTimes = service.GetWaitTimes() });
 	}
 
 	[HttpGet("report/{ratingType}/{timeWaited}")]
