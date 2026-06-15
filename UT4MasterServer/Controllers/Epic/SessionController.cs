@@ -142,7 +142,27 @@ public sealed class SessionController : JsonAPIController
 						return ErrorInvalidRequest("password");
 					}
 
+					// TEMP DEBUG: log the auth attempt details so we can diagnose
+					// game-client format mismatches. Remove before merging.
+					logger.LogInformation(
+						"DEBUG auth attempt: clientID={ClientID} username='{Username}' pwLen={PwLen} pwHead='{PwHead}' pwTail='{PwTail}'",
+						clientID, username, password?.Length ?? -1,
+						password is null ? "" : password.Substring(0, Math.Min(8, password.Length)),
+						password is null ? "" : password.Substring(Math.Max(0, password.Length - 8)));
+
 					account = await accountService.GetAccountUsernameOrEmailAsync(username);
+					if (account is null)
+					{
+						logger.LogInformation("DEBUG: no account found for '{Username}'", username);
+					}
+					else
+					{
+						var checkResult = account.CheckPassword(password, allowPasswordGrant);
+						logger.LogInformation(
+							"DEBUG: account found id={AccountID} email={Email} CheckPassword={Result}",
+							account.ID, account.Email, checkResult);
+					}
+
 					if (account != null && account.CheckPassword(password, allowPasswordGrant))
 					{
 						session = await sessionService.CreateSessionAsync(account.ID, clientID, SessionCreationMethod.Password);
