@@ -226,6 +226,23 @@ public class GameServer
 		// Do some preprocessing on attributes
 		JsonObject? attrs = Attributes.ToJObject();
 
+		// UT4's matchmaking gather (UTSearchPass + UTMatchmakingGather) does
+		// client-side validation against attributes the server may not
+		// advertise. Backfill sane defaults so the candidate isn't dropped:
+		//   * UT_NEEDS_i      — free slots; matchmaker requires NEEDS_i >= partySize
+		//   * UT_TEAMELO_i    — team ELO mid-point; default 1500 when untracked
+		//   * UT_TEAMELO2_i   — secondary team ELO mid-point
+		if (isResponseToClient)
+		{
+			int openPublic = Math.Max(0, MaxPublicPlayers - PublicPlayers.Count);
+			if (attrs!["UT_NEEDS_i"] is null)
+				attrs["UT_NEEDS_i"] = openPublic;
+			if (attrs["UT_TEAMELO_i"] is null)
+				attrs["UT_TEAMELO_i"] = 1500;
+			if (attrs["UT_TEAMELO2_i"] is null)
+				attrs["UT_TEAMELO2_i"] = 1500;
+		}
+
 		// build json
 		var obj = new List<KeyValuePair<string, JsonNode?>>();
 

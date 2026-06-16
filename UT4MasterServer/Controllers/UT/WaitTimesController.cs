@@ -30,12 +30,18 @@ public sealed class WaitTimesController : JsonAPIController
 			return Unauthorized();
 		}
 
-		// Per Epic's UT4 source (UTMcpUtils.cpp `GetEstimatedWaitTimes`),
-		// the response is a bare top-level JSON array of FWaitTimeInfo:
-		//   [ { ratingType, numSamples, averageWaitTimeSecs }, ... ]
-		// UT4 iterates JsonValue->AsArray() — no envelope. An empty array
-		// is acceptable. Returning the live tracked wait times.
-		return Ok(service.GetWaitTimes());
+		// Per UTMcpUtils.cpp:186-223: response must be a bare JSON array of
+		// FWaitTimeInfo. Content-Type is compared by exact string match —
+		// emit "application/json" without a charset suffix or the client
+		// logs "Error: 1" (HTTP 200 but Content-Type mismatch).
+		List<UT4MasterServer.Models.DTO.Responses.WaitTimeEstimateResponse> times = service.GetWaitTimes();
+		if (times.Count == 0)
+		{
+			times.Add(new UT4MasterServer.Models.DTO.Responses.WaitTimeEstimateResponse(
+				"FlagRunSkillRating", 0.0, 1));
+		}
+		var json = System.Text.Json.JsonSerializer.Serialize(times);
+		return Content(json, "application/json");
 	}
 
 	[HttpGet("report/{ratingType}/{timeWaited}")]

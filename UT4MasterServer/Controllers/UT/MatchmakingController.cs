@@ -75,6 +75,18 @@ public sealed class MatchmakingController : JsonAPIController
 		server.LastUpdated = DateTime.UtcNow;
 
 		server.ServerAddress = ipClient.ToString();
+
+		// Local-dev: heartbeats from a game-server on the docker host arrive
+		// at the api container via the docker0 bridge gateway (172.x.x.x).
+		// UT4 clients can't reach that, so collapse the docker-bridge view
+		// back to the loopback the user actually has.
+		var ipBytes = ipClient.GetAddressBytes();
+		if (ipClient.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork &&
+			ipBytes[0] == 172 && ipBytes[1] >= 16 && ipBytes[1] <= 31)
+		{
+			server.ServerAddress = "127.0.0.1";
+		}
+
 		server.Started = false;
 
 		GameServerTrust trust = GameServerTrust.Untrusted;
@@ -359,12 +371,17 @@ public sealed class MatchmakingController : JsonAPIController
 	[HttpPost("session/matchMakingRequest")]
 	public async Task<IActionResult> ListGameServers([FromBody] GameServerFilterRequest filter)
 	{
+		var who = User.Identity is EpicUserIdentity euid ? euid.Session.AccountID.ToString() : "anonymous";
+		logger.LogInformation("MM_REQUEST who={Who} buildId={Build} criteria={N}",
+			who, filter.BuildUniqueId, filter.Criteria?.Count);
+
 		if (User.Identity is not EpicUserIdentity)
 		{
 			logger.LogInformation($"'{Request.HttpContext.Connection.RemoteIpAddress}' accessed GameServer list without authentication");
 		}
 
 		List<GameServer>? servers = await matchmakingService.ListAsync(filter);
+		logger.LogInformation("MM_REQUEST result count={Count}", servers.Count);
 
 		//var list = new GameServer[]
 		//{

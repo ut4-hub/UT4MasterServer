@@ -119,9 +119,22 @@ public sealed class MatchmakingService
 
 		foreach (GameServerAttributeCriteria? condition in inputFilter.Criteria)
 		{
-			// TODO: use skipped conditions to query dynamic value and sort results
-			//       (UTMatchmakingGather.cpp - search for SETTING_NEEDSSORT)
-			if (condition.Key == "NEEDS" || condition.Key == "NEEDSSORT")
+			// Quick-Play search hints UT4 always sends but the master server
+			// either tracks differently or doesn't track at all:
+			//   * NEEDS / NEEDS_i           - "needs at least N more players";
+			//                                  redundant with OpenPlayersRequired
+			//                                  which is enforced below.
+			//   * NEEDSSORT / NEEDSSORT_i   - DISTANCE sort hint (UTMatchmakingGather.cpp).
+			//   * REGION_s                  - Epic GeoIP region; not modeled.
+			//   * UT_SERVERTRUSTLEVEL_i     - UT4 always asks for "0" but our
+			//                                  hub-spawned children advertise the
+			//                                  hub's actual trust level. Letting
+			//                                  this through excludes every valid
+			//                                  Quick-Play server.
+			if (condition.Key == "NEEDS" || condition.Key == "NEEDSSORT" ||
+				condition.Key == "NEEDS_i" || condition.Key == "NEEDSSORT_i" ||
+				condition.Key == "REGION_s" ||
+				condition.Key == "UT_SERVERTRUSTLEVEL_i")
 			{
 				continue;
 			}
@@ -163,7 +176,14 @@ public sealed class MatchmakingService
 
 			if (compElem != null)
 			{
-				var attrCheck = new BsonElement($"{nameof(GameServer.Attributes)}.{condition.Key}", new BsonDocument(compElem.Value));
+				// UT4 search criteria use unprefixed keys (PLAYLISTID_i, REGION_s)
+				// but game servers register them with the UT_ prefix
+				// (UT_PLAYLISTID_i, UT_REGION_s). Normalize to the prefixed form
+				// so the criterion lines up with how servers advertise attributes.
+				string attrKey = condition.Key.StartsWith("UT_")
+					? condition.Key
+					: $"UT_{condition.Key}";
+				var attrCheck = new BsonElement($"{nameof(GameServer.Attributes)}.{attrKey}", new BsonDocument(compElem.Value));
 				doc.Add(attrCheck);
 			}
 		}
