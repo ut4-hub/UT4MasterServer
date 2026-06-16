@@ -60,16 +60,39 @@ git clone -b smoke-stack-integration git@github.com:ut4-hub/UT4MasterServer.git
 git clone git@github.com:ut4-hub/ut4-install.git
 ```
 
-## 2. Build images + start the smoke stack
+## 2. Get the images
+
+### Option A — pull from GitHub Container Registry (faster)
+
+Images pushed to `ghcr.io/ut4-hub/`:
+
+```bash
+docker pull ghcr.io/ut4-hub/ut4ms-api:dev-2026-06-16
+docker pull ghcr.io/ut4-hub/ut4ms-web:dev-2026-06-16
+docker pull ghcr.io/ut4-hub/ut4ms-xmpp:dev-2026-06-16
+
+# Re-tag for the smoke compose (which uses the short local names)
+docker tag ghcr.io/ut4-hub/ut4ms-api:dev-2026-06-16 ut4-master-server-api:smoke
+docker tag ghcr.io/ut4-hub/ut4ms-web:dev-2026-06-16 ut4-master-server-web:smoke-v2
+docker tag ghcr.io/ut4-hub/ut4ms-xmpp:dev-2026-06-16 ut4ms-smoke-xmpp:local
+```
+
+If the GHCR pulls return 401, run
+`gh auth token | docker login ghcr.io -u <github-user> --password-stdin` first.
+
+### Option B — build from source
 
 ```bash
 cd ~/code/UT4MasterServer
 
-# Build the api image
+# api
 docker build -t ut4-master-server-api:smoke -f UT4MasterServer/Dockerfile .
 
-# Build the web (nginx) image
+# web (nginx)
 docker build -t ut4-master-server-web:smoke-v2 -f UT4MasterServer.Web/.docker/Dockerfile UT4MasterServer.Web
+
+# xmpp (ejabberd + extauth python helper)
+docker build -t ut4ms-smoke-xmpp:local XMPP-ejabberd/
 
 # Bring up the smoke compose stack (api, web, mongo, xmpp/ejabberd, mailpit)
 # The compose file lives at /tmp/ut4ms-smoke on the original dev box.

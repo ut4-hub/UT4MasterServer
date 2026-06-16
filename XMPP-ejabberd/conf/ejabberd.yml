@@ -1,0 +1,184 @@
+# ejabberd config for local UT4 smoke stack.
+#
+# Goal: let the UT4 client (libstrophe, talks PLAIN/SCRAM SASL) connect to
+# a JID@localhost so the matchmaking flow
+# (FOnlinePartySystemMcp::PublishPartyInfoToPresence) gets past its
+# "search pending" gate.
+#
+# Notes:
+#  - Vhost is "localhost" so no /etc/hosts entry is needed on the host.
+#  - Auth uses an external "yes-man" script (yesman.py) that accepts every
+#    auth/isuser query. UT4 always connects with a JID+password (the MCP
+#    access token), and libstrophe will not pick SASL ANONYMOUS when a
+#    password is set, so plain anonymous auth is not enough.
+#  - With external auth, ejabberd advertises only PLAIN + EXTERNAL (no
+#    SCRAM, because it cannot ask the script for hashed passwords). UT4
+#    will negotiate PLAIN, the yes-man returns success, and the session
+#    proceeds.
+#  - STARTTLS is offered on 5222 using the smoke stack's self-signed cert
+#    (CN=127.0.0.1, SAN=localhost). starttls_required is false so the
+#    client can choose plain TCP if the cert isn't trusted — useful for
+#    iteration before the cert is wired into the system PKI bundle.
+
+hosts:
+  - localhost
+
+loglevel: info
+
+certfiles:
+  - /opt/ejabberd/tls/server.pem
+
+ca_file: /opt/ejabberd/tls/server.pem
+
+listen:
+  -
+    port: 5222
+    ip: "::"
+    module: ejabberd_c2s
+    max_stanza_size: 262144
+    shaper: c2s_shaper
+    access: c2s
+    starttls: true
+    starttls_required: false
+  -
+    port: 5269
+    ip: "::"
+    module: ejabberd_s2s_in
+    max_stanza_size: 524288
+  -
+    port: 5280
+    ip: "::"
+    module: ejabberd_http
+    request_handlers:
+      /admin: ejabberd_web_admin
+      /api: mod_http_api
+
+# External-auth "yes-man" script — accepts every credential. NEVER use this
+# on a public deployment. The script lives at /opt/ejabberd-extauth/yesman.py
+# (mounted from ./ejabberd/extauth) and logs every command it sees to
+# /home/ejabberd/database/yesman.log.
+extauth_program: "/opt/ejabberd-extauth/yesman.py"
+extauth_pool_size: 4
+auth_method: [external]
+auth_use_cache: false
+allow_multiple_connections: true
+
+max_fsm_queue: 10000
+
+shaper:
+  normal:
+    rate: 3000
+    burst_size: 20000
+  fast: 100000
+
+shaper_rules:
+  max_user_sessions: 10
+  max_user_offline_messages: 5000
+  c2s_shaper:
+    none: admin
+    normal: all
+  s2s_shaper: fast
+
+access_rules:
+  local:
+    allow: local
+  c2s:
+    deny: blocked
+    allow: all
+  announce:
+    allow: admin
+  configure:
+    allow: admin
+  muc_create:
+    allow: local
+  pubsub_createnode:
+    allow: local
+  register:
+    allow: all
+  trusted_network:
+    allow: loopback
+
+api_permissions:
+  "console commands":
+    from:
+      - ejabberd_ctl
+    who: all
+    what: "*"
+  "admin access":
+    who:
+      access:
+        allow:
+          acl: loopback
+          acl: admin
+      oauth:
+        scope: "ejabberd:admin"
+        access:
+          allow:
+            acl: loopback
+            acl: admin
+    what:
+      - "*"
+      - "!stop"
+      - "!start"
+  "public commands":
+    who:
+      ip: 127.0.0.1/8
+    what:
+      - status
+      - connected_users_number
+
+acl:
+  loopback:
+    ip:
+      - 127.0.0.0/8
+      - ::1/128
+      - "172.16.0.0/12"  # docker bridge
+      - "10.0.0.0/8"
+  admin:
+    user:
+      - admin@localhost
+  local:
+    user_regexp: ""
+
+# Modules — minimum needed for presence + private chat + MUC (party rooms).
+modules:
+  mod_adhoc: {}
+  mod_caps: {}
+  mod_carboncopy: {}
+  mod_client_state: {}
+  mod_configure: {}
+  mod_disco: {}
+  mod_last: {}
+  mod_offline:
+    access_max_user_messages: max_user_offline_messages
+  mod_ping: {}
+  mod_privacy: {}
+  mod_private: {}
+  mod_pubsub:
+    access_createnode: pubsub_createnode
+    ignore_pep_from_offline: true
+    last_item_cache: false
+    plugins:
+      - flat
+      - pep
+  mod_roster:
+    versioning: true
+  mod_shared_roster: {}
+  mod_stream_mgmt:
+    resend_on_timeout: if_offline
+  mod_vcard:
+    search: false
+  mod_vcard_xupdate: {}
+  mod_version:
+    show_os: false
+  mod_muc:
+    access:
+      - allow
+    access_admin:
+      - allow: admin
+    access_create: muc_create
+    access_persistent: muc_create
+    access_mam:
+      - allow
+    default_room_options:
+      mam: false
