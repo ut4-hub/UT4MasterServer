@@ -48,28 +48,33 @@ Already noted in earlier commits — `SUTWebBrowserPanel::Construct` never invok
 Workaround in place: `MinHeight: 0` in the announcement JSON collapses the dead box;
 title carries the roadmap content as multi-line text.
 
-## In progress
+## Done (cont'd)
 
-### Show Player Card hang
+### Show Player Card — FIXED
 
-Dispatched a subagent to figure out why the dialog hangs on "Requesting Player
-Information..." forever. Hypotheses being checked:
-- 3D character preview render (`PlayerPreviewTexture`, `PlayerPreviewMID`) failing
-  silently on Linux + leaving the loading placeholder visible
-- A widget gate inside `SUTPlayerInfoDialog::Construct` waiting for a condition that
-  never becomes true on Linux
+Root cause (per subagent disassembly of the shipping binary, which differs from the
+open-source mirror): `SUTPlayerInfoDialog::OnReadUserFileComplete` reads
+`/ut/api/cloudstorage/user/{id}/oldplayercard` as an async MCP fetch. The gate at
+vaddr `0x15a3684` checks `bWasSuccessful` — if false (because we 404'd), the
+success path that calls `UpdatePlayerCustomization` (which clears the loading text
+and builds tabs) never runs.
 
-Master server log shows ZERO requests during the user's player card click — so this
-is purely client-side rendering. Backend (QueryProfile, cloudstorage, MMR) is verified
-working with curl.
+Fix (commit `ff4d7cf`): extend the existing `stats.json` stub in
+`CloudStorageController.GetFile` to also handle `oldplayercard`. Return `{}` so the
+success branch fires. `UpdatePlayerCustomization` null-checks all fetched data so
+empty is safe.
 
-### XMPP TLS warning
+After the next client launch, the dialog should populate normally.
 
-Client log shows `libstrophe tls error: SSL_CTX_load_verify_locations() failed` on
-XMPP startup. **Not actually blocking anything** — XMPP stanzas flow normally
-afterward, login + party + presence all work. Likely libstrophe trying its default
-CA path and falling back to no-verify mode. Can add `SSL_CERT_FILE` to the launcher
-env to silence it. Low priority.
+### XMPP TLS warning — FIXED
+
+`libstrophe tls error: SSL_CTX_load_verify_locations() failed` on every XMPP connect.
+libstrophe calls SSL_CTX_load_verify_locations with NULL paths and falls back to
+OpenSSL's compile-time default (which doesn't exist inside the steam-run sandbox).
+
+Fix (commit `5d71851` in ut4-install): set `SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt`
+in the launcher. Also applied to the local launch.sh so the next launch picks it up
+without a Nix rebuild.
 
 ## Open / out of scope for tonight
 

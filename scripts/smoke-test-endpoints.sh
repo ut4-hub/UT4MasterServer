@@ -72,6 +72,7 @@ check "GET system files list" GET    "/ut/api/cloudstorage/system"              
 check "GET user_profile_2"    GET    "/ut/api/cloudstorage/user/$acct/user_profile_2"       200 ""
 check "GET user_progression"  GET    "/ut/api/cloudstorage/user/$acct/user_progression_1"   200 ""
 check "GET stats.json (auto)" GET    "/ut/api/cloudstorage/user/$acct/stats.json"           200 "PlayerName"
+check "GET oldplayercard stub" GET   "/ut/api/cloudstorage/user/$acct/oldplayercard"         200 ""
 check "GET system announcement" GET  "/ut/api/cloudstorage/system/UnrealTournmentMCPAnnouncement.json" 200 "Title"
 echo
 
