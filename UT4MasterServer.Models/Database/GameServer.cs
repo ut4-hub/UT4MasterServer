@@ -285,7 +285,18 @@ public class GameServer
 		obj.Add(new("usesPresence", UsesPresence));
 		obj.Add(new("allowJoinViaPresence", AllowJoinViaPresence));
 		obj.Add(new("allowJoinViaPresenceFriendsOnly", AllowJoinViaPresenceFriendsOnly));
-		obj.Add(new("buildUniqueId", BuildUniqueID));
+		// UE4's FOnlineSessionSettings::BuildUniqueId is int32. If we emit it
+		// as a JSON string, FJsonObject::GetIntegerField returns 0 (or fails
+		// silently depending on the build), which doesn't match the client's
+		// BuildUniqueId so the session is dropped from SearchResults entirely.
+		if (int.TryParse(BuildUniqueID, out int buildIdNum))
+		{
+			obj.Add(new("buildUniqueId", buildIdNum));
+		}
+		else
+		{
+			obj.Add(new("buildUniqueId", BuildUniqueID));
+		}
 		obj.Add(new("lastUpdated", LastUpdated.ToStringISO()));
 		obj.Add(new("started", Started));
 		if (!isResponseToClient)

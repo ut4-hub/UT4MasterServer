@@ -371,17 +371,17 @@ public sealed class MatchmakingController : JsonAPIController
 	[HttpPost("session/matchMakingRequest")]
 	public async Task<IActionResult> ListGameServers([FromBody] GameServerFilterRequest filter)
 	{
-		var who = User.Identity is EpicUserIdentity euid ? euid.Session.AccountID.ToString() : "anonymous";
-		logger.LogInformation("MM_REQUEST who={Who} buildId={Build} criteria={N}",
-			who, filter.BuildUniqueId, filter.Criteria?.Count);
-
-		if (User.Identity is not EpicUserIdentity)
+		if (User.Identity is EpicUserIdentity euid)
+		{
+			logger.LogInformation("matchMakingRequest from {Who} buildId={Build} criteria={N}",
+				euid.Session.AccountID, filter.BuildUniqueId, filter.Criteria?.Count);
+		}
+		else
 		{
 			logger.LogInformation($"'{Request.HttpContext.Connection.RemoteIpAddress}' accessed GameServer list without authentication");
 		}
 
 		List<GameServer>? servers = await matchmakingService.ListAsync(filter);
-		logger.LogInformation("MM_REQUEST result count={Count}", servers.Count);
 
 		//var list = new GameServer[]
 		//{
