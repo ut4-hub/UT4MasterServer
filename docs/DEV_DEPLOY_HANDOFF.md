@@ -152,13 +152,18 @@ services:
       - "127.0.0.1:27017:27017"
     networks: [ut4ms]
 
-  xmpp:
-    image: ut4ms-smoke-xmpp:local   # ejabberd built locally; see notes
-    container_name: ut4ms-smoke-xmpp
-    ports:
-      - "127.0.0.1:5222:5222"
-      - "127.0.0.1:5280:5280"
-    networks: [ut4ms]
+  # ejabberd / XMPP — OPTIONAL. Solo QuickPlay works without it
+  # (verified 2026-06-16). Uncomment if you need multi-player party
+  # invites + party chat side panel + presence indicators. See the
+  # block below the compose for the trade-offs and Cloudflare caveat.
+  #
+  # xmpp:
+  #   image: ut4ms-smoke-xmpp:local
+  #   container_name: ut4ms-smoke-xmpp
+  #   ports:
+  #     - "127.0.0.1:5222:5222"
+  #     - "127.0.0.1:5280:5280"
+  #   networks: [ut4ms]
 
   mailpit:
     image: axllent/mailpit:latest
