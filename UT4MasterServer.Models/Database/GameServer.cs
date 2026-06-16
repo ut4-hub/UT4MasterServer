@@ -241,6 +241,43 @@ public class GameServer
 				attrs["UT_TEAMELO_i"] = 1500;
 			if (attrs["UT_TEAMELO2_i"] is null)
 				attrs["UT_TEAMELO2_i"] = 1500;
+
+			// AUTGameSessionRanked servers (UT_RANKED_i=1) PUT their own
+			// session settings on every heartbeat and that overwrites any
+			// QuickPlay tags an operator added via mongo updateOne. Without
+			// those tags the matchmaker filter returns 0 candidates and the
+			// QuickPlay tile spins forever. Auto-inject the standard tags
+			// so the operator never has to re-apply them after the server
+			// loses its FlagRun config (e.g. after a match cycles back to
+			// UTEmptyServerGameMode).
+			//
+			// This is local-dev-curated-pool behavior: every Ranked server
+			// is treated as a QuickPlay_Blitz candidate. If you ever run
+			// multiple Ranked playlists (DM, CTF, Showdown) on the same
+			// master, gate this off a server-tag lookup table keyed by
+			// e.g. ServerPort or OwningClientID instead.
+			if (attrs["UT_RANKED_i"]?.GetValue<int>() == 1)
+			{
+				if (attrs["UT_RULETAG_s"] is null)
+					attrs["UT_RULETAG_s"] = "QuickPlay_Blitz";
+				if (attrs["UT_PLAYLISTID_i"] is null || attrs["UT_PLAYLISTID_i"]?.GetValue<int>() == 0)
+					attrs["UT_PLAYLISTID_i"] = 11;
+				if (attrs["PLAYLISTID_i"] is null || attrs["PLAYLISTID_i"]?.GetValue<int>() == 0)
+					attrs["PLAYLISTID_i"] = 11;
+				// UTSERVERTRUSTLEVEL_i: UTGameSessionRanked sets this to 1
+				// (Trusted) but UT4's QuickPlay tile criteria asks for
+				// UT_SERVERTRUSTLEVEL_i=0 (Epic-curated). Master-side
+				// criteria-key normalization already skips this filter, but
+				// fix it in the response too so any future client-side
+				// validation we don't know about doesn't drop the candidate.
+				attrs["UT_SERVERTRUSTLEVEL_i"] = 0;
+				if (attrs["UT_GAMEINSTANCE_i"] is null)
+					attrs["UT_GAMEINSTANCE_i"] = 0;
+				if (attrs["UT_MATCHSTATE_s"] is null || attrs["UT_MATCHSTATE_s"]?.GetValue<string>() == "EMPTY")
+					attrs["UT_MATCHSTATE_s"] = "WaitingToStart";
+				if (attrs["UT_SERVERNAME_s"] is null)
+					attrs["UT_SERVERNAME_s"] = "Blitz Quick Play";
+			}
 		}
 
 		// build json

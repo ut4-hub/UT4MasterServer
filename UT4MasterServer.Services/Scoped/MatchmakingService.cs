@@ -183,8 +183,26 @@ public sealed class MatchmakingService
 				string attrKey = condition.Key.StartsWith("UT_")
 					? condition.Key
 					: $"UT_{condition.Key}";
-				var attrCheck = new BsonElement($"{nameof(GameServer.Attributes)}.{attrKey}", new BsonDocument(compElem.Value));
-				doc.Add(attrCheck);
+
+				// AUTGameSessionRanked servers PUT their own session settings on
+				// every heartbeat, which overwrites UT_PLAYLISTID_i back to 0
+				// and erases UT_RULETAG_s. The matchmaker then can't find them
+				// via the PLAYLISTID_i criterion. Treat any UT_RANKED_i=1 server
+				// as a valid PLAYLISTID candidate so the criterion still matches
+				// the Ranked QuickPlay pool. (Local-dev convention: every Ranked
+				// server in the registry is implicitly part of the QuickPlay
+				// pool. Tighten this if you ever run multiple Ranked playlists.)
+				if (attrKey == "UT_PLAYLISTID_i")
+				{
+					var playlistMatch = new BsonDocument($"{nameof(GameServer.Attributes)}.{attrKey}", new BsonDocument(compElem.Value));
+					var rankedMatch = new BsonDocument($"{nameof(GameServer.Attributes)}.UT_RANKED_i", 1);
+					doc.Add("$or", new BsonArray { playlistMatch, rankedMatch });
+				}
+				else
+				{
+					var attrCheck = new BsonElement($"{nameof(GameServer.Attributes)}.{attrKey}", new BsonDocument(compElem.Value));
+					doc.Add(attrCheck);
+				}
 			}
 		}
 
