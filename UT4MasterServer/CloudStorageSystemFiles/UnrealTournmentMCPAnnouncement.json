@@ -1,7 +1,7 @@
 {
 	"Announcements": [
 		{
-			"Title": "Dallas Pick - UT4 Local Stack Roadmap\n\nSHIPPED:\n  * Username/email + password auth in game\n  * 'Forgot password' link to master server reset\n  * Email reset (Resend prod / mailpit local)\n  * Quick-Play Blitz -> live FlagRun match\n  * Announcement panel populated (this!)\n  * In-game chat (everyone + team)\n\nCOMING SOON:\n  * Voice chat (Linux mic capture)\n  * Collectable items / cosmetics\n  * OnlineFriendsMcp wired up\n  * Show Player Card from scoreboard",
+			"Title": "Dallas Pick - UT4 Local Stack Roadmap\n\nSHIPPED:\n  * Username/email + password auth in game\n  * 'Forgot password' link to master server reset\n  * Email reset (Resend prod / mailpit local)\n  * Quick-Play Blitz -> live FlagRun match\n  * Announcement panel populated (this!)\n  * In-game chat (everyone + team)\n  * Friends/Recent/Block HTTP backend ready\n\nCOMING SOON:\n  * Voice chat (Linux mic capture)\n  * Collectable items / cosmetics\n  * Show Player Card from scoreboard\n\nKNOWN LIMITATION:\n  * In-game friends UI is compile-time-stripped\n    in the 2017 Linux client (UTLocalPlayer.cpp\n    line 6254). Backend is ready; UI needs\n    client rebuild or menu binary-patch.",
 			"StartDate": "2026.01.01-00.00.0",
 			"EndDate": "2030.12.31-23.59.59",
 			"MinHeight": 0
