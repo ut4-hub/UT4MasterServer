@@ -167,12 +167,17 @@ public sealed class FriendsController : JsonAPIController
 
 		List<FriendRequest>? blockedUsers = await friendService.GetBlockedUsersAsync(eid);
 
+		// UE4 FOnlineFriendsMcp::QueryBlockedPlayers expects an object with
+		// blockedUsers array, not a bare array. Returning [] makes the client
+		// log "QueryBlockedPlayers request failed. Invalid response payload=[]".
 		var arr = new JArray();
 		foreach (FriendRequest? blockedUser in blockedUsers)
 		{
 			arr.Add(blockedUser.Receiver.ToString());
 		}
-		return Json(arr);
+		var obj = new JObject();
+		obj.Add("blockedUsers", arr);
+		return Json(obj);
 	}
 
 	[HttpPost("blocklist/{id}/{friendID}")]
