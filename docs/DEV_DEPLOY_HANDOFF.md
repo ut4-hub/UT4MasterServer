@@ -188,6 +188,73 @@ COMPOSE
 docker compose up -d
 ```
 
+## 2a. Reseed cloudstorage system files (REQUIRED on any pre-existing deploy)
+
+The master server seeds the `cloudstorage` mongo collection from
+`UT4MasterServer/CloudStorageSystemFiles/*.json` **only when the
+collection is empty**. Once seeded, mongo is the source of truth, and
+changes in the repo files don't propagate without a manual reseed.
+
+This is especially important for `UTMCPPlaylists.json`, which controls
+whether QuickPlay tiles render in the home panel. If the deployed mongo
+has an older version of this file with `"bHideInUI": true`, the player
+sees the main menu with **no Quick Play tiles**.
+
+### What to do on the remote
+
+```bash
+# 1. Make sure the repo on the remote is on the deploy/dev-handoff-2026-06-16
+#    branch (it ships UTMCPPlaylists.json with bHideInUI:false)
+cd ~/code/UT4MasterServer
+git fetch
+git checkout deploy/dev-handoff-2026-06-16
+git pull
+
+# 2. Rebuild the api image so the new CloudStorageSystemFiles/ are baked in
+docker build -t ut4-master-server-api:smoke -f UT4MasterServer/Dockerfile .
+
+# 3. Drop the stale cloudstorage entries from mongo so the api re-seeds
+#    them from disk on next start. (Replace creds with what's actually
+#    configured on the remote mongo.)
+docker exec -i ut4ms-smoke-mongo mongosh \
+  "mongodb://smoke:smokepass@127.0.0.1:27017/?authSource=admin" --quiet <<'EOF'
+db = db.getSiblingDB("ut4master");
+print("before:", db.cloudstorage.countDocuments({AccountID: null}));
+db.cloudstorage.deleteMany({AccountID: null});
+print("after: ", db.cloudstorage.countDocuments({AccountID: null}));
+EOF
+
+# 4. Recreate the api container with the new image (compose `restart`
+#    keeps the old image; `up -d --force-recreate` picks up the rebuilt one)
+docker compose up -d --force-recreate --no-deps api
+
+# 5. Verify the playlists file now has bHideInUI:false
+curl -s https://ut4.pick.haus/ut/api/cloudstorage/system/UTMCPPlaylists.json \
+  | python3 -c 'import json,sys; d=json.load(sys.stdin); print([i.get("RulesetTag"), i.get("bHideInUI")] for i in d["NewItems"])'
+```
+
+### Files this affects
+
+Anything under `UT4MasterServer/CloudStorageSystemFiles/`. The full set
+the server re-seeds on a fresh mongo:
+
+- `UTMCPPlaylists.json` — controls QuickPlay tiles (THE one that matters
+  for the no-tiles bug)
+- `UnrealTournmentMCPAnnouncement.json` — main-menu announcement panel
+- `UnrealTournmentMCPGameRulesets.json` — game-mode definitions
+- `UnrealTournmentMCPStorage.json`
+- `UnrealTournamentOnlineSettings.json`
+
+If you only want to refresh one file, target it:
+
+```bash
+docker exec -i ut4ms-smoke-mongo mongosh ... --eval '
+  db = db.getSiblingDB("ut4master");
+  db.cloudstorage.deleteOne({Filename: "UTMCPPlaylists.json", AccountID: null});
+'
+docker compose up -d --force-recreate --no-deps api
+```
+
 ## 3. Seed an account
 
 ```bash
