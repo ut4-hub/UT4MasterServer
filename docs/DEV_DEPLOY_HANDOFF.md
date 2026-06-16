@@ -169,11 +169,21 @@ services:
     networks: [ut4ms]
 COMPOSE
 
-# Note: the ejabberd image (ut4ms-smoke-xmpp:local) needs to be built or
-# pulled separately. On the original dev box it was built from a custom
-# Dockerfile bundling extauth.py that calls /account/api/oauth/verify.
-# If you skip ejabberd, in-game XMPP (chat, party, presence) won't work
-# but everything else will.
+# Note: the ejabberd image (ut4ms-smoke-xmpp:local) is OPTIONAL.
+#
+# Empirically verified 2026-06-16 on the local dev box: solo QuickPlay
+# works WITHOUT XMPP. The party object is created locally even when
+# XMPP publish fails ("PublishPartyInfoToPresence failure"), and the
+# matchmaker HTTP path fires regardless. Player lands in the match
+# normally; only some benign XMPP warnings in the client log.
+#
+# What XMPP IS needed for: multi-player party invites (friends UI is
+# broken on Linux anyway), party chat side panel, presence indicators
+# ("Friend X is playing"). Skip XMPP for solo-QuickPlay deployments.
+#
+# To skip: drop the `xmpp:` service block above and stop binding port
+# 5222. Saves a container, ~50 MB RAM, and the Cloudflare-doesn't-proxy
+# -TCP/5222 headache for remote deploys.
 
 docker compose up -d
 ```
@@ -379,7 +389,7 @@ on hybrid laptops.
 |---------|-------|-------|
 | Login (username or email + password) | ✅ | Path A — stock client, no UT4UU |
 | Forgot password / email reset | ✅ | Mailpit captures locally, Resend in prod |
-| Quick-Play Blitz (FIRST cycle after server start) | ✅ | Lands in FlagRun |
+| Quick-Play Blitz (FIRST cycle after server start) | ✅ | Lands in FlagRun. Works **without** XMPP (verified 2026-06-16) |
 | Quick-Play Blitz (subsequent cycles) | ⚠️ | Watchdog sometimes loses tail across log rotation; kill+restart watchdog to recover. See "Operational quirks" below |
 | In-game chat (everyone + team) | ✅ | T / R keys |
 | Announcement panel — title | ✅ | Multi-line ASCII; mixed font sizes need rich-text widget |
