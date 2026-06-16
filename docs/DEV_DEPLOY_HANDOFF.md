@@ -77,8 +77,16 @@ docker tag ghcr.io/ut4-hub/ut4ms-web:dev-2026-06-16 ut4-master-server-web:smoke-
 docker tag ghcr.io/ut4-hub/ut4ms-xmpp:dev-2026-06-16 ut4ms-smoke-xmpp:local
 ```
 
-If the GHCR pulls return 401, run
-`gh auth token | docker login ghcr.io -u <github-user> --password-stdin` first.
+**Auth required**: the packages are private. The receiving machine needs to
+authenticate to `ghcr.io` once with a PAT that has `read:packages` scope.
+Easiest if you're already signed into `gh` with the right account:
+
+```bash
+gh auth token | docker login ghcr.io -u <github-user> --password-stdin
+```
+
+Or create a classic PAT at <https://github.com/settings/tokens> with the
+`read:packages` scope, then `docker login ghcr.io -u <user> -p <token>`.
 
 ### Option B — build from source
 
