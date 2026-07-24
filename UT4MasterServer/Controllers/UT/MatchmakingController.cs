@@ -31,15 +31,18 @@ public sealed class MatchmakingController : JsonAPIController
 	private readonly TrustedGameServerService trustedGameServerService;
 
 	private readonly IOptions<ApplicationSettings> configuration;
+	private readonly IOptions<TrustedGameServerSettings> trustedServerSettings;
 
 	public MatchmakingController(
 		ILogger<MatchmakingController> logger,
 		IOptions<ApplicationSettings> configuration,
+		IOptions<TrustedGameServerSettings> trustedServerSettings,
 		MatchmakingService matchmakingService,
 		ClientService clientService,
 		TrustedGameServerService trustedGameServerService) : base(logger)
 	{
 		this.configuration = configuration;
+		this.trustedServerSettings = trustedServerSettings;
 		this.matchmakingService = matchmakingService;
 		this.clientService = clientService;
 		this.trustedGameServerService = trustedGameServerService;
@@ -74,6 +77,11 @@ public sealed class MatchmakingController : JsonAPIController
 		server.ID = EpicID.GenerateNew();
 		server.LastUpdated = DateTime.UtcNow;
 
+		// Capture any address the server declared in its request body BEFORE we
+		// overwrite it, so a trusted server behind NAT/tunnels can opt in to
+		// advertising it (see the override block below).
+		var declaredAddress = server.ServerAddress;
+
 		server.ServerAddress = ipClient.ToString();
 		server.Started = false;
 
@@ -84,6 +92,37 @@ public sealed class MatchmakingController : JsonAPIController
 			trust = trusted.TrustLevel;
 		}
 		server.Attributes.Set(GameServerAttributes.UT_SERVERTRUSTLEVEL_i, (int)trust);
+
+		// By default the advertised address is the request's source IP (upstream
+		// behavior, set above). Game servers behind NAT/tunnels (playit.gg,
+		// Cloudflare Spectrum, home servers behind CGNAT) register from an egress
+		// IP that differs from the ingress address players must connect to, so
+		// that default lists an unreachable server. For TRUSTED servers only, an
+		// operator can opt in (both mechanisms default OFF) to advertise the real
+		// public address. Untrusted-server behavior is intentionally unchanged.
+		if (trust != GameServerTrust.Untrusted)
+		{
+			var overrides = trustedServerSettings.Value;
+
+			if (overrides.AllowDeclaredAddress
+				&& !string.IsNullOrWhiteSpace(declaredAddress)
+				&& declaredAddress != "0.0.0.0"
+				&& IPAddress.TryParse(declaredAddress, out _))
+			{
+				logger.LogInformation(
+					"Trusted server {ServerID} (client {ClientID}) address override {From} -> {To} (reason: declared address)",
+					server.ID, server.OwningClientID, server.ServerAddress, declaredAddress);
+				server.ServerAddress = declaredAddress;
+			}
+			else if (overrides.AddressOverrides.TryGetValue(ipClient.ToString(), out var mappedAddress)
+				&& !string.IsNullOrWhiteSpace(mappedAddress))
+			{
+				logger.LogInformation(
+					"Trusted server {ServerID} (client {ClientID}) address override {From} -> {To} (reason: egress->ingress map)",
+					server.ID, server.OwningClientID, server.ServerAddress, mappedAddress);
+				server.ServerAddress = mappedAddress;
+			}
+		}
 
 		if (trust != GameServerTrust.Untrusted)
 		{
