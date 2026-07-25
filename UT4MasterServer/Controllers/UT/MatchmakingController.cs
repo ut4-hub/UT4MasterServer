@@ -80,7 +80,9 @@ public sealed class MatchmakingController : JsonAPIController
 		// Capture any address the server declared in its request body BEFORE we
 		// overwrite it, so a trusted server behind NAT/tunnels can opt in to
 		// advertising it (see the override block below).
-		var declaredAddress = server.ServerAddress;
+		// Trim so a stray-whitespace value (e.g. " 0.0.0.0") cannot slip past the
+		// "0.0.0.0" guard below while IPAddress.TryParse still accepts it.
+		var declaredAddress = server.ServerAddress?.Trim();
 
 		server.ServerAddress = ipClient.ToString();
 		server.Started = false;
@@ -114,13 +116,18 @@ public sealed class MatchmakingController : JsonAPIController
 					server.ID, server.OwningClientID, server.ServerAddress, declaredAddress);
 				server.ServerAddress = declaredAddress;
 			}
+			// Validate the config-driven override the same way as the declared one:
+			// trim, reject empty/"0.0.0.0", and require a parseable IP so a misconfigured
+			// entry can't make the master advertise an invalid/unreachable address.
 			else if (overrides.AddressOverrides.TryGetValue(ipClient.ToString(), out var mappedAddress)
-				&& !string.IsNullOrWhiteSpace(mappedAddress))
+				&& mappedAddress?.Trim() is { Length: > 0 } trimmedMapped
+				&& trimmedMapped != "0.0.0.0"
+				&& IPAddress.TryParse(trimmedMapped, out _))
 			{
 				logger.LogInformation(
 					"Trusted server {ServerID} (client {ClientID}) address override {From} -> {To} (reason: egress->ingress map)",
-					server.ID, server.OwningClientID, server.ServerAddress, mappedAddress);
-				server.ServerAddress = mappedAddress;
+					server.ID, server.OwningClientID, server.ServerAddress, trimmedMapped);
+				server.ServerAddress = trimmedMapped;
 			}
 		}
 
