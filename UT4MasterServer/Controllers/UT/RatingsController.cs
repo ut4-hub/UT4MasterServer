@@ -155,18 +155,26 @@ public sealed class RatingsController : JsonAPIController
 		}
 
 		// this endpoint is anonymous, keep paging within sane bounds
+		(skip, limit) = ClampPaging(skip, limit);
+
+		PagedResponse<RankingsResponse>? response = await ratingsService.GetRankingsAsync(ratingType, skip, limit);
+
+		return Ok(response);
+	}
+
+	internal static (int Skip, int Limit) ClampPaging(int skip, int limit)
+	{
 		if (skip < 0)
 		{
 			skip = 0;
 		}
+
 		if (limit < 1 || limit > 100)
 		{
 			limit = 100;
 		}
 
-		PagedResponse<RankingsResponse>? response = await ratingsService.GetRankingsAsync(ratingType, skip, limit);
-
-		return Ok(response);
+		return (skip, limit);
 	}
 
 	[HttpGet("ranking/{accountId}")]

@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc.Formatters;
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using UT4MasterServer.Models.Database;
 
@@ -17,30 +18,38 @@ public sealed class StatisticBaseInputFormatter : InputFormatter
 
 		var rawValue = await reader.ReadToEndAsync();
 
+		if (!TryParse(rawValue, out StatisticBase? newObject))
+		{
+			return InputFormatterResult.Failure();
+		}
+
+		return InputFormatterResult.Success(newObject);
+	}
+
+	internal static bool TryParse(string rawValue, [NotNullWhen(true)] out StatisticBase? result)
+	{
+		result = null;
+
 		// the game terminates this json body with a trailing NUL character.
 		// strip it only when present instead of blindly removing the last
 		// character, which corrupted well-formed bodies and threw on empty ones.
 		var json = rawValue.TrimEnd('\0');
 		if (string.IsNullOrWhiteSpace(json))
 		{
-			return InputFormatterResult.Failure();
+			return false;
 		}
 
 		try
 		{
-			StatisticBase? newObject = JsonSerializer.Deserialize<StatisticBase>(json);
-			if (newObject is null)
-			{
-				// the body was the json literal "null"
-				return InputFormatterResult.Failure();
-			}
-
-			return InputFormatterResult.Success(newObject);
+			result = JsonSerializer.Deserialize<StatisticBase>(json);
 		}
 		catch (JsonException)
 		{
-			return InputFormatterResult.Failure();
+			return false;
 		}
+
+		// result is null when the body was the json literal "null"
+		return result is not null;
 	}
 
 	protected override bool CanReadType(Type type)
