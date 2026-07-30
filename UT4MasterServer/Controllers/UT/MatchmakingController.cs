@@ -144,7 +144,7 @@ public sealed class MatchmakingController : JsonAPIController
 
 		if (server.OwningClientID != user.Session.ClientID)
 		{
-			Unauthorized();
+			return Unauthorized();
 		}
 
 		server.Update(updatedServer);
@@ -192,7 +192,7 @@ public sealed class MatchmakingController : JsonAPIController
 
 		if (server.OwningClientID != user.Session.ClientID)
 		{
-			Unauthorized();
+			return Unauthorized();
 		}
 
 		var wasDeleted = await matchmakingService.RemoveAsync(EpicID.FromString(id));
@@ -235,7 +235,7 @@ public sealed class MatchmakingController : JsonAPIController
 
 		if (server.OwningClientID != user.Session.ClientID)
 		{
-			Unauthorized();
+			return Unauthorized();
 		}
 
 #if false
@@ -289,7 +289,7 @@ public sealed class MatchmakingController : JsonAPIController
 
 		if (server.OwningClientID != user.Session.ClientID)
 		{
-			Unauthorized();
+			return Unauthorized();
 		}
 
 		// handle player list update
@@ -337,7 +337,7 @@ public sealed class MatchmakingController : JsonAPIController
 
 		if (server.OwningClientID != user.Session.ClientID)
 		{
-			Unauthorized();
+			return Unauthorized();
 		}
 
 		foreach (EpicID player in players)
@@ -468,7 +468,7 @@ public sealed class MatchmakingController : JsonAPIController
 
 		if (server.OwningClientID != user.Session.ClientID)
 		{
-			Unauthorized();
+			return Unauthorized();
 		}
 
 		server.Started = started;
