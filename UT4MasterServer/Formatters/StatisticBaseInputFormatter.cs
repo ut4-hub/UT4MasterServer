@@ -17,9 +17,24 @@ public sealed class StatisticBaseInputFormatter : InputFormatter
 
 		var rawValue = await reader.ReadToEndAsync();
 
-		StatisticBase? newObject = JsonSerializer.Deserialize<StatisticBase>(rawValue[..^1]);
+		// the game terminates this json body with a trailing NUL character.
+		// strip it only when present instead of blindly removing the last
+		// character, which corrupted well-formed bodies and threw on empty ones.
+		var json = rawValue.TrimEnd('\0');
+		if (string.IsNullOrWhiteSpace(json))
+		{
+			return InputFormatterResult.Failure();
+		}
 
-		return InputFormatterResult.Success(newObject);
+		try
+		{
+			StatisticBase? newObject = JsonSerializer.Deserialize<StatisticBase>(json);
+			return InputFormatterResult.Success(newObject);
+		}
+		catch (JsonException)
+		{
+			return InputFormatterResult.Failure();
+		}
 	}
 
 	protected override bool CanReadType(Type type)
