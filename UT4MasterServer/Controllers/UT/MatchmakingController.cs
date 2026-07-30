@@ -106,6 +106,11 @@ public sealed class MatchmakingController : JsonAPIController
 		{
 			var overrides = trustedServerSettings.Value;
 
+			// The override map is keyed by the client's egress IP. Normalize an
+			// IPv4-mapped IPv6 source (e.g. "::ffff:1.2.3.4") back to plain IPv4 so it
+			// matches config keys written as IPv4.
+			var overrideKey = ipClient.IsIPv4MappedToIPv6 ? ipClient.MapToIPv4().ToString() : ipClient.ToString();
+
 			if (overrides.AllowDeclaredAddress
 				&& !string.IsNullOrWhiteSpace(declaredAddress)
 				&& declaredAddress != "0.0.0.0"
@@ -119,7 +124,10 @@ public sealed class MatchmakingController : JsonAPIController
 			// Validate the config-driven override the same way as the declared one:
 			// trim, reject empty/"0.0.0.0", and require a parseable IP so a misconfigured
 			// entry can't make the master advertise an invalid/unreachable address.
-			else if (overrides.AddressOverrides.TryGetValue(ipClient.ToString(), out var mappedAddress)
+			// Null-guard AddressOverrides (e.g. JSON "AddressOverrides": null) so
+			// TryGetValue can't throw, and look it up by the normalized IPv4 key.
+			else if (overrides.AddressOverrides is { } addressOverrides
+				&& addressOverrides.TryGetValue(overrideKey, out var mappedAddress)
 				&& mappedAddress?.Trim() is { Length: > 0 } trimmedMapped
 				&& trimmedMapped != "0.0.0.0"
 				&& IPAddress.TryParse(trimmedMapped, out _))
