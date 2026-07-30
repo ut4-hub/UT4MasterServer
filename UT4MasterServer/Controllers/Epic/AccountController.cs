@@ -204,7 +204,7 @@ public sealed class AccountController : JsonAPIController
 				return Conflict("Recaptcha token is missing");
 			}
 
-			HttpResponseMessage httpResponse = await httpClient.GetAsync($"https://www.google.com/recaptcha/api/siteverify?secret={Uri.EscapeDataString(reCaptchaSecret)}&response={Uri.EscapeDataString(recaptchaToken)}");
+			using HttpResponseMessage httpResponse = await httpClient.GetAsync($"https://www.google.com/recaptcha/api/siteverify?secret={Uri.EscapeDataString(reCaptchaSecret)}&response={Uri.EscapeDataString(recaptchaToken)}");
 			if (httpResponse.StatusCode != System.Net.HttpStatusCode.OK)
 			{
 				return Conflict("Recaptcha validation failed");

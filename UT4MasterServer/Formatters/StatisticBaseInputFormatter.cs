@@ -29,6 +29,12 @@ public sealed class StatisticBaseInputFormatter : InputFormatter
 		try
 		{
 			StatisticBase? newObject = JsonSerializer.Deserialize<StatisticBase>(json);
+			if (newObject is null)
+			{
+				// the body was the json literal "null"
+				return InputFormatterResult.Failure();
+			}
+
 			return InputFormatterResult.Success(newObject);
 		}
 		catch (JsonException)
