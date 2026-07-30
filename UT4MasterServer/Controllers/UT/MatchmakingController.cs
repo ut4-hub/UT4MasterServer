@@ -295,25 +295,19 @@ public sealed class MatchmakingController : JsonAPIController
 		// handle player list update
 		foreach (EpicID player in serverOnlyWithPlayers.PublicPlayers)
 		{
-			if (!server.PublicPlayers.Where(x => x == player).Any())
+			if (!server.PublicPlayers.Contains(player))
 			{
 				server.PublicPlayers.Add(player);
 			}
-			if (server.PrivatePlayers.Where(x => x == player).Any())
-			{
-				server.PrivatePlayers.Remove(player);
-			}
+			server.PrivatePlayers.Remove(player);
 		}
 		foreach (EpicID player in serverOnlyWithPlayers.PrivatePlayers)
 		{
-			if (!server.PrivatePlayers.Where(x => x == player).Any())
+			if (!server.PrivatePlayers.Contains(player))
 			{
 				server.PrivatePlayers.Add(player);
 			}
-			if (server.PublicPlayers.Where(x => x == player).Any())
-			{
-				server.PublicPlayers.Remove(player);
-			}
+			server.PublicPlayers.Remove(player);
 		}
 
 		await matchmakingService.UpdateAsync(server);
