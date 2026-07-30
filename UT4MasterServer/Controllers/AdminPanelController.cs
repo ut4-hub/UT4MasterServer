@@ -236,6 +236,8 @@ public sealed class AdminPanelController : ControllerBase
 			// as well as prevent anyone else from using this account after successful password change.
 			await sessionService.RemoveSessionsWithFilterAsync(EpicID.Empty, account.ID, EpicID.Empty);
 
+			logLevel = LogLevel.Information;
+
 			return Ok();
 		}
 		finally
