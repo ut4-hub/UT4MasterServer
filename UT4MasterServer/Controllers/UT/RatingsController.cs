@@ -154,6 +154,16 @@ public sealed class RatingsController : JsonAPIController
 			return BadRequest($"'{ratingType}' is not supported rating type.");
 		}
 
+		// this endpoint is anonymous, keep paging within sane bounds
+		if (skip < 0)
+		{
+			skip = 0;
+		}
+		if (limit < 1 || limit > 100)
+		{
+			limit = 100;
+		}
+
 		PagedResponse<RankingsResponse>? response = await ratingsService.GetRankingsAsync(ratingType, skip, limit);
 
 		return Ok(response);
