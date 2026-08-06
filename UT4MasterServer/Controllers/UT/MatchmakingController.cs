@@ -84,6 +84,28 @@ public sealed class MatchmakingController : JsonAPIController
 		// "0.0.0.0" guard below while IPAddress.TryParse still accepts it.
 		var declaredAddress = server.ServerAddress?.Trim();
 
+		// The UE5.8 UT client shim (OnlineSessionUT RegisterServer) advertises its
+		// ServerAddressOverride via an X-Forwarded-For request header rather than in
+		// the body, so also capture the left-most XFF entry BEFORE we overwrite
+		// ServerAddress. This is only consulted as a fallback for TRUSTED servers when
+		// the body declares no valid address (see the override block below).
+		string? forwardedForAddress = null;
+		foreach (var xffHeader in HttpContext.Request.Headers["X-Forwarded-For"])
+		{
+			if (string.IsNullOrWhiteSpace(xffHeader))
+			{
+				continue;
+			}
+
+			// Left-most entry is the originally forwarded (client-declared) address.
+			var xffParts = xffHeader.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+			if (xffParts.Length > 0)
+			{
+				forwardedForAddress = xffParts[0];
+				break;
+			}
+		}
+
 		server.ServerAddress = ipClient.ToString();
 		server.Started = false;
 
@@ -120,6 +142,20 @@ public sealed class MatchmakingController : JsonAPIController
 					"Trusted server {ServerID} (client {ClientID}) address override {From} -> {To} (reason: declared address)",
 					server.ID, server.OwningClientID, server.ServerAddress, declaredAddress);
 				server.ServerAddress = declaredAddress;
+			}
+			// The UE5.8 client shim declares its address via an X-Forwarded-For header
+			// instead of the request body, so fall back to the left-most XFF entry when
+			// no valid declared body address was provided. Same AllowDeclaredAddress gate
+			// and validation (non-empty, not "0.0.0.0", parseable IP) as the body path.
+			else if (overrides.AllowDeclaredAddress
+				&& !string.IsNullOrWhiteSpace(forwardedForAddress)
+				&& forwardedForAddress != "0.0.0.0"
+				&& IPAddress.TryParse(forwardedForAddress, out _))
+			{
+				logger.LogInformation(
+					"Trusted server {ServerID} (client {ClientID}) address override {From} -> {To} (reason: xff-fallback)",
+					server.ID, server.OwningClientID, server.ServerAddress, forwardedForAddress);
+				server.ServerAddress = forwardedForAddress;
 			}
 			// Validate the config-driven override the same way as the declared one:
 			// trim, reject empty/"0.0.0.0", and require a parseable IP so a misconfigured
